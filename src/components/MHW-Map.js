@@ -1,6 +1,6 @@
 import {createElement, useEffect, useId, useRef} from "npm:react";
 import {createRoot} from "npm:react-dom/client";
-import * as maplibregl from "npm:maplibre-gl";
+import * as maplibregl from "npm:maplibre-gl@6.1.0";
 
 const DEFAULT_CENTER = [-122.4194, 37.7749];
 const DEFAULT_ZOOM = 1;
