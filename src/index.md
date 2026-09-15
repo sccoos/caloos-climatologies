@@ -37,6 +37,7 @@ const initialStationKey = shoreStationOptions.find(
 const stationMap = renderMHWMap({
   title: "Observations Map",
   stations: shoreStationManifest.stations,
+  initialStationKey,
   workerUrl: maplibreWorkerUrl,
   onStationSelect: (stationKey) => {
     shoreStationClimatologyPlot.setStationKey?.(stationKey);

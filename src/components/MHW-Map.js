@@ -90,10 +90,12 @@ export function MHWMap({
   workerUrl = null,
   apiRef = null,
   onStationSelect = null,
+  initialStationKey = null,
   height = null,
   stations = [],
   interactive = true,
-  showNavigation = true
+  showNavigation = true,
+  compactAttribution = true
 }) {
   const mapId = useId();
   const containerRef = useRef(null);
@@ -116,6 +118,8 @@ export function MHWMap({
     const stationPopupsByKey = new Map();
     const stationMarkers = [];
     let activePopupStationKey = null;
+    let selectedStationKey = initialStationKey;
+    let initialStationOpened = false;
     let stationBoundsApplied = false;
 
     if (workerUrl) {
@@ -140,6 +144,16 @@ export function MHWMap({
       activePopupStationKey = null;
     };
 
+    const selectStation = (stationKey) => {
+      selectedStationKey = stationKey;
+      for (const [key, marker] of stationMarkersByKey) {
+        marker
+          .getElement()
+          .querySelector(".mhw-map-marker")
+          ?.classList.toggle("is-selected", key === stationKey);
+      }
+    };
+
     const openStationPopup = (stationKey) => {
       const station = stationsByKey.get(stationKey);
       const marker = stationMarkersByKey.get(stationKey);
@@ -147,6 +161,7 @@ export function MHWMap({
       if (!station || !marker || !popup) return false;
 
       closeOpenPopups();
+      selectStation(stationKey);
       popup
         .setLngLat([Number(station.longitude), Number(station.latitude)])
         .addTo(map);
@@ -160,6 +175,7 @@ export function MHWMap({
 
       // Hide the prior station label while the map moves to the new selection.
       closeOpenPopups();
+      selectStation(stationKey);
       const targetCenter = [Number(station.longitude), Number(station.latitude)];
       map.flyTo({
         center: targetCenter,
@@ -196,14 +212,25 @@ export function MHWMap({
           closeOnClick: false
         }).setText(station.name ?? "Station");
 
-        const marker = new maplibregl.Marker({color: "#0f766e"})
+        const markerElement = document.createElement("div");
+        const markerButton = document.createElement("button");
+        markerButton.type = "button";
+        markerButton.className = "mhw-map-marker";
+        markerButton.title = station.name ?? "Station";
+        markerButton.setAttribute("aria-label", `Select ${station.name ?? "station"}`);
+        markerElement.append(markerButton);
+        const marker = new maplibregl.Marker({element: markerElement, anchor: "center"})
           .setLngLat([longitude, latitude])
           .addTo(map);
 
         if (station.station_key) {
           stationMarkersByKey.set(station.station_key, marker);
           stationPopupsByKey.set(station.station_key, popup);
-          marker.getElement().addEventListener("click", (event) => {
+          markerButton.classList.toggle(
+            "is-selected",
+            station.station_key === selectedStationKey
+          );
+          markerButton.addEventListener("click", (event) => {
             event.stopPropagation();
             if (activePopupStationKey === station.station_key) {
               closeOpenPopups();
@@ -245,7 +272,7 @@ export function MHWMap({
     }
 
     map.addControl(
-      new maplibregl.AttributionControl({compact: true}),
+      new maplibregl.AttributionControl({compact: compactAttribution}),
       "bottom-right"
     );
 
@@ -256,6 +283,9 @@ export function MHWMap({
     map.on("load", () => {
       addStationMarkers();
       resizeMap();
+      if (!initialStationOpened && initialStationKey) {
+        initialStationOpened = flyToStation(initialStationKey);
+      }
     });
 
     return () => {
@@ -266,7 +296,7 @@ export function MHWMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [apiRef, center, interactive, onStationSelect, showNavigation, stations, styleUrl, workerUrl, zoom]);
+  }, [apiRef, center, initialStationKey, interactive, onStationSelect, showNavigation, stations, styleUrl, workerUrl, zoom]);
 
   return createElement(
     "article",
