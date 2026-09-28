@@ -5,14 +5,23 @@ sql:
 
 ```js
 //import {renderENSOAlertCard} from "./components/ENSOAlertCard.js";
+import {renderLoadingSpinner} from "./components/LoadingSpinner.js";
 import {renderMHWMap} from "./components/MHW-Map.js";
 import {renderSelectableWaterTemperatureClimatology} from "./components/WaterTemperatureClimatologies.js";
 
-const ensoAlertStatus = await FileAttachment("data/ENSO_alert_status.json").json();
+const page = document.createElement("div");
+page.className = "dashboard-page dashboard-page--loading";
+const loadingSpinner = renderLoadingSpinner({label: "Loading dashboard data"});
+page.append(loadingSpinner);
+display(page);
+
+const [ensoAlertStatus, maplibreWorkerUrl, shoreStationManifest, shoreStationRows] = await Promise.all([
+  FileAttachment("data/ENSO_alert_status.json").json(),
+  FileAttachment("data/maplibre-gl-worker.bundle.js").url(),
+  FileAttachment("data/shore_station_anomaly/manifest.json").json(),
+  sql`SELECT * FROM shore_station_climatology`
+]);
 //const ensoAlertCard = renderENSOAlertCard(ensoAlertStatus);
-const maplibreWorkerUrl = await FileAttachment("data/maplibre-gl-worker.bundle.js").url();
-const shoreStationManifest = await FileAttachment("data/shore_station_anomaly/manifest.json").json();
-const shoreStationRows = await sql`SELECT * FROM shore_station_climatology`;
 const shoreStationRowsByKey = Object.groupBy(shoreStationRows, (row) => row.station_key);
 const shoreStationOptions = shoreStationManifest.stations
   .map((station) => ({
@@ -58,9 +67,6 @@ const shoreStationClimatologyPlot = renderSelectableWaterTemperatureClimatology(
   }
 });
 
-const page = document.createElement("div");
-page.className = "dashboard-page";
-
 // const cardPane = document.createElement("div");
 // cardPane.className = "dashboard-card-pane";
 // cardPane.append(ensoAlertCard);
@@ -73,6 +79,7 @@ const plotPane = document.createElement("div");
 plotPane.className = "dashboard-plot-pane";
 plotPane.append(shoreStationClimatologyPlot);
 
-page.append(mapPane, plotPane);
-display(page);
+page.classList.remove("dashboard-page--loading");
+loadingSpinner.dispose?.();
+page.replaceChildren(mapPane, plotPane);
 ```

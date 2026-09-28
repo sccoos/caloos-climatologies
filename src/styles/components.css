@@ -48,6 +48,7 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .mhw-map-card__eyebrow {
@@ -56,8 +57,7 @@
 
 .mhw-map-card__map {
   width: 100%;
-  border-radius: 16px;
-  overflow: hidden;
+  border-radius: inherit;
   border: 1px solid #d7e3f0;
   background: #dce9f5;
   min-height: 280px;
