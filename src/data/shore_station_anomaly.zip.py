@@ -529,14 +529,24 @@ def circular_rolling_mean(
     if frame.empty:
         return frame
 
-    result = frame.sort_values("day_of_year").reset_index(drop=True).copy()
-    radius = window // 2
-    padded = pd.concat(
-        [result.iloc[-radius:], result, result.iloc[:radius]], ignore_index=True
+    result = (
+        frame.set_index("day_of_year")
+        .reindex(range(1, 366))
+        .rename_axis("day_of_year")
+        .reset_index()
     )
+    radius = window // 2
     for column in columns:
-        smoothed = padded[column].rolling(window=window, center=True, min_periods=1).mean()
-        result[column] = smoothed.iloc[radius : radius + len(result)].to_numpy()
+        padded = pd.concat(
+            [result[column].iloc[-radius:], result[column], result[column].iloc[:radius]],
+            ignore_index=True,
+        )
+        result[column] = (
+            padded.rolling(window=window, center=True, min_periods=1)
+            .mean()
+            .iloc[radius : radius + len(result)]
+            .to_numpy()
+        )
     return result
 
 
@@ -545,26 +555,25 @@ def pooled_day_of_year_statistics(
 ) -> pd.DataFrame:
     """Calculate climatology statistics from circular calendar-day neighborhoods."""
     if frame.empty:
-        return pd.DataFrame(columns=["day_of_year", "mean", "min", "max", "p90"])
+        return pd.DataFrame(columns=["day_of_year", "mean", "p90"])
 
     radius = window // 2
-    records = []
-    for day_of_year in sorted(frame["day_of_year"].unique()):
-        neighborhood = {
-            ((day_of_year + offset - 1) % 365) + 1
+    pooled = pd.concat(
+        [
+            frame.assign(
+                day_of_year=((frame["day_of_year"] - 1 + offset) % 365) + 1
+            )
             for offset in range(-radius, radius + 1)
-        }
-        values = frame.loc[frame["day_of_year"].isin(neighborhood), value_column]
-        records.append(
-            {
-                "day_of_year": day_of_year,
-                "mean": values.mean(),
-                "min": values.min(),
-                "max": values.max(),
-                "p90": values.quantile(0.9),
-            }
+        ],
+        ignore_index=True,
+    )
+    return (
+        pooled.groupby("day_of_year", as_index=False)
+        .agg(
+            mean=(value_column, "mean"),
+            p90=(value_column, lambda values: values.quantile(0.9)),
         )
-    return pd.DataFrame(records)
+    )
 
 
 def build_daily_products(
@@ -609,11 +618,19 @@ def build_daily_products(
     ).rename(
         columns={
             "mean": "historical_climatology_mean",
-            "min": "historical_climatology_min",
-            "max": "historical_climatology_max",
             "p90": "historical_climatology_p90",
         }
     )
+    historical_range = (
+        historical_daily.groupby("day_of_year", as_index=False)
+        .agg(
+            historical_climatology_min=("daily_mean", "min"),
+            historical_climatology_max=("daily_mean", "max"),
+        )
+    )
+    historical_climatology = historical_climatology[
+        ["day_of_year", "historical_climatology_mean", "historical_climatology_p90"]
+    ].merge(historical_range, on="day_of_year", how="left")
     historical_climatology = circular_rolling_mean(
         historical_climatology,
         ["historical_climatology_mean", "historical_climatology_p90"],
