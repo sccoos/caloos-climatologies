@@ -11,6 +11,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      PMEL_CCE1_USERNAME: ${{ secrets.PMEL_CCE1_USERNAME }}
+      PMEL_CCE1_PASSWORD: ${{ secrets.PMEL_CCE1_PASSWORD }}
+      PMEL_CCE2_USERNAME: ${{ secrets.PMEL_CCE2_USERNAME }}
+      PMEL_CCE2_PASSWORD: ${{ secrets.PMEL_CCE2_PASSWORD }}
     permissions:
       contents: read
       pages: write
