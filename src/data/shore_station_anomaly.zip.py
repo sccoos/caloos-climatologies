@@ -119,7 +119,7 @@ DATASETS = [
     {
         "name": "M1 Mooring",
         "type": "Mooring",
-        "server": "https://erddap.caloos.org/erddap",
+        "server": "https://erddap.cencoos.org/erddap",
         "dataset_id": "org_mbari_m1",
         "temperature_field": "sea_water_temperature",
         "temperature_qc_field": "sea_water_temperature_qc_agg",
