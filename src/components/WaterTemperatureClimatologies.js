@@ -338,13 +338,14 @@ export function WaterTemperatureClimatology({
           stroke: "#111111",
           strokeWidth: 1.8
         }),
-        createElement("path", {
-          d: lineOrNull(line, historicalP90Series),
-          fill: "none",
-          stroke: "#2f855a",
-          strokeWidth: 1.8,
-          strokeDasharray: "6 4"
-        }),
+        // Historical 90th-percentile line intentionally disabled.
+        // createElement("path", {
+        //   d: lineOrNull(line, historicalP90Series),
+        //   fill: "none",
+        //   stroke: "#2f855a",
+        //   strokeWidth: 1.8,
+        //   strokeDasharray: "6 4"
+        // }),
         createElement("line", {
           x1: 0,
           x2: innerWidth,
@@ -427,7 +428,8 @@ export function WaterTemperatureClimatology({
             },
             createElement("div", {className: "climatology-card__legend"},
               legendItem("#111111", "Historical mean", "dashed"),
-              legendItem("#2f855a", "Historical 90th percentile", "dashed"),
+              // Historical 90th-percentile legend item is disabled with its line.
+              // legendItem("#2f855a", "Historical 90th percentile", "dashed"),
               legendItem("#111111", "Current year"),
               legendItem("#8a94a6", "Climatology range")
             )
@@ -491,17 +493,9 @@ export function WaterTemperatureClimatology({
     createElement(
       "div",
       {className: "climatology-card__notes"},
-      `Historic climatology for ${stationName} calculated from ${formatYearRange(historicalStartYear, historicalEndYear)} with 7-day smoothing. This year to date, ${stationName} has observed ${formatDayCount(currentYearDaysExceedingHistoricalMax)} new maximum daily mean temperatures, and ${formatDayCount(currentYearDaysExceedingHistoricalP90)} days where daily mean temperature exceeded the threshold for marine heatwave (`,
-      createElement(
-        "a",
-        {
-          href: "https://doi.org/10.1016/j.pocean.2015.12.014",
-          target: "_blank",
-          rel: "noreferrer"
-        },
-        "Hobday et al. 2016"
-      ),
-      "). Source: ",
+      `Historic climatology for ${stationName} calculated from ${formatYearRange(historicalStartYear, historicalEndYear)} smoothed over an 11 day window. This year to date, ${stationName} has observed ${formatDayCount(currentYearDaysExceedingHistoricalMax)} new maximum daily mean temperatures.`,
+      createElement("br"),
+      "Source: ",
       sourceUrl
         ? createElement(
             "a",

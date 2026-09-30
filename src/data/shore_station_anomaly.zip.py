@@ -2,6 +2,8 @@
 
 import io
 import json
+import base64
+import os
 import re
 import time
 import sys
@@ -10,7 +12,7 @@ from datetime import datetime, timezone
 from http.client import IncompleteRead
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pandas as pd
 from erddapy import ERDDAP
@@ -131,6 +133,32 @@ DATASETS = [
         "temperature_field": "sea_water_temperature",
         "temperature_qc_field": "sea_water_temperature_qc_agg",
         "temperature_at_depth": 0,
+    },
+    {
+        "name": "CCE1",
+        "type": "Mooring",
+        "server": "https://www.pmel.noaa.gov",
+        "dataset_id": "pmel_cce1",
+        "source_type": "pmel_dat",
+        "source_url": "https://www.pmel.noaa.gov/co2/pco2data/cce1/alldata/mooring_cce1-all_xco2_pres-xco2seadryair-xco2airdryair-ph-sss-sst-chl-ntu-sc_o2-sc_o2_mgl-sc_o2_umolkg-sigmatheta.dat",
+        "credentials_env_prefix": "PMEL_CCE1",
+        "temperature_field": "SST",
+        "source_temperature_field": "Sea Surface Temperature (deg C)",
+        "latitude": 33.452565,
+        "longitude": -122.460433,
+    },
+    {
+        "name": "CCE2",
+        "type": "Mooring",
+        "server": "https://www.pmel.noaa.gov",
+        "dataset_id": "pmel_cce2",
+        "source_type": "pmel_dat",
+        "source_url": "https://www.pmel.noaa.gov/co2/pco2data/cce2/alldata/coastal_cce2-all_xco2_pres-xco2seadryair-xco2airdryair-ph-sss-sst-chl-ntu-sc_o2-sc_o2_mgl-sc_o2_umolkg-sigmatheta.dat",
+        "credentials_env_prefix": "PMEL_CCE2",
+        "temperature_field": "SST",
+        "source_temperature_field": "Sea Surface Temperature (deg C)",
+        "latitude": 34.303672,
+        "longitude": -120.802338,
     }
 ]
 
@@ -266,7 +294,139 @@ def read_csv_with_retries(download_url: str) -> pd.DataFrame:
     raise RuntimeError(f"Failed to download dataset {download_url} after {DOWNLOAD_RETRIES} attempts: {last_error}")
 
 
-def fetch_station_data(
+def pmel_credentials(dataset: dict) -> Tuple[str, str]:
+    prefix = dataset["credentials_env_prefix"]
+    username = os.environ.get(f"{prefix}_USERNAME")
+    password = os.environ.get(f"{prefix}_PASSWORD")
+    if username and password:
+        return username, password
+    raise RuntimeError(
+        f"{prefix}_USERNAME and {prefix}_PASSWORD must be set to download "
+        f"the authenticated PMEL file for {dataset['name']}."
+    )
+
+
+def read_pmel_dat_with_retries(dataset: dict) -> pd.DataFrame:
+    """Download a PMEL mooring ASCII file with HTTP basic authentication.
+
+    PMEL files place field names on row 15 and units/metadata on row 16; data begins
+    on row 17. The parser therefore uses the row-15 names and skips row 16.
+    """
+    download_url = dataset["source_url"]
+    username, password = pmel_credentials(dataset)
+    authorization = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    request = Request(download_url, headers={"Authorization": f"Basic {authorization}"})
+
+    last_error = None
+    for attempt in range(1, DOWNLOAD_RETRIES + 1):
+        try:
+            with urlopen(request) as response:
+                dat_bytes = response.read()
+            lines = dat_bytes.decode("utf-8", errors="replace").splitlines()
+            if len(lines) < 17:
+                raise ValueError(
+                    f"PMEL dataset '{dataset['name']}' is shorter than the documented 17-row header."
+                )
+            # PMEL defines field names on physical row 15 and starts records on row 17.
+            # Slice those rows explicitly so Pandas cannot reinterpret the blank row 16.
+            csv_text = "\n".join([lines[14], *lines[16:]])
+            return pd.read_csv(
+                io.StringIO(csv_text),
+                sep=",",
+                skipinitialspace=True,
+                na_values=["-999", "-999.0", "NaN", "nan"],
+                low_memory=False,
+            )
+        except (IncompleteRead, HTTPError, URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt == DOWNLOAD_RETRIES:
+                break
+            time.sleep(RETRY_DELAY_SECONDS)
+
+    raise RuntimeError(
+        f"Failed to download authenticated PMEL dataset '{dataset['name']}' from "
+        f"{download_url} after {DOWNLOAD_RETRIES} attempts: {last_error}"
+    )
+
+
+def find_column(frame: pd.DataFrame, *candidates: str) -> Optional[str]:
+    normalized = {
+        re.sub(r"[^a-z0-9]", "", str(column).lower()): column
+        for column in frame.columns
+    }
+    for candidate in candidates:
+        column = normalized.get(re.sub(r"[^a-z0-9]", "", candidate.lower()))
+        if column is not None:
+            return str(column)
+    return None
+
+
+def pmel_timestamps(frame: pd.DataFrame) -> pd.Series:
+    datetime_column = find_column(
+        frame, "datetime_utc", "datetime", "timestamp", "date_time", "time"
+    )
+    if datetime_column:
+        return pd.to_datetime(frame[datetime_column], utc=True, errors="coerce")
+
+    year = find_column(frame, "year", "yyyy")
+    month = find_column(frame, "month", "mm")
+    day = find_column(frame, "day", "dd")
+    hour = find_column(frame, "hour", "hh")
+    minute = find_column(frame, "minute", "min")
+    second = find_column(frame, "second", "sec")
+    if not all([year, month, day]):
+        raise ValueError(
+            "PMEL file does not include a recognized UTC datetime column or year/month/day columns."
+        )
+
+    components = pd.DataFrame(
+        {
+            "year": pd.to_numeric(frame[year], errors="coerce"),
+            "month": pd.to_numeric(frame[month], errors="coerce"),
+            "day": pd.to_numeric(frame[day], errors="coerce"),
+            "hour": pd.to_numeric(frame[hour], errors="coerce") if hour else 0,
+            "minute": pd.to_numeric(frame[minute], errors="coerce") if minute else 0,
+            "second": pd.to_numeric(frame[second], errors="coerce") if second else 0,
+        }
+    )
+    return pd.to_datetime(components, utc=True, errors="coerce")
+
+
+def fetch_pmel_mooring_data(
+    dataset: dict,
+) -> Tuple[pd.DataFrame, str, Optional[str], Optional[float], Optional[float]]:
+    temperature_variable = dataset["temperature_field"]
+    frame = read_pmel_dat_with_retries(dataset)
+
+    temperature_column = find_column(
+        frame, dataset.get("source_temperature_field", temperature_variable)
+    )
+    if temperature_column is None:
+        raise ValueError(
+            f"Configured temperature_field '{temperature_variable}' was not found in {dataset['name']}."
+        )
+
+    result = pd.DataFrame(
+        {
+            TIME_VARIABLE: pmel_timestamps(frame),
+            temperature_variable: pd.to_numeric(frame[temperature_column], errors="coerce"),
+        }
+    ).dropna(subset=[TIME_VARIABLE, temperature_variable])
+    result = result.sort_values(TIME_VARIABLE).reset_index(drop=True)
+    if result.empty:
+        raise ValueError(f"Dataset '{dataset['name']}' returned no valid SST observations.")
+
+    # PMEL CCE files do not supply a temperature QC variable.
+    return (
+        result,
+        temperature_variable,
+        None,
+        float(dataset["latitude"]),
+        float(dataset["longitude"]),
+    )
+
+
+def fetch_erddap_station_data(
     dataset: dict,
 ) -> Tuple[pd.DataFrame, str, Optional[str], Optional[float], Optional[float]]:
     server = dataset["server"]
@@ -336,6 +496,14 @@ def fetch_station_data(
     return frame, temperature_variable, qc_variable, latitude, longitude
 
 
+def fetch_station_data(
+    dataset: dict,
+) -> Tuple[pd.DataFrame, str, Optional[str], Optional[float], Optional[float]]:
+    if dataset.get("source_type") == "pmel_dat":
+        return fetch_pmel_mooring_data(dataset)
+    return fetch_erddap_station_data(dataset)
+
+
 def climatology_day_of_year(series: pd.Series) -> pd.Series:
     month = series.dt.month
     day = series.dt.day
@@ -390,7 +558,7 @@ def build_daily_products(
         daily[daily["year"] < current_year].sort_values("time").copy()
     )
     historical_daily["historical_rolling_daily_mean"] = (
-        historical_daily["daily_mean"].rolling(window=10, center=True).mean()
+        historical_daily["daily_mean"].rolling(window=11, center=True).mean()
     )
     historical_climatology = (
         historical_daily.groupby("day_of_year", as_index=False)
@@ -438,7 +606,7 @@ def build_daily_products(
                 "historical_climatology_min",
                 "historical_climatology_max",
                 "historical_climatology_mean",
-                "historical_climatology_p90",
+                #"historical_climatology_p90",
                 "year_to_date_anomaly",
             ]
         ],
@@ -483,8 +651,12 @@ def build_archive() -> bytes:
     station_frames = []
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         for dataset in DATASETS:
-            frame, temperature_variable, temperature_qc_variable, latitude, longitude = fetch_station_data(dataset)
-            daily, climatology_metadata = build_daily_products(frame, temperature_variable)
+            station_name = dataset.get("name", dataset["dataset_id"])
+            try:
+                frame, temperature_variable, temperature_qc_variable, latitude, longitude = fetch_station_data(dataset)
+                daily, climatology_metadata = build_daily_products(frame, temperature_variable)
+            except Exception as exc:
+                raise RuntimeError(f"Failed to process station '{station_name}': {exc}") from exc
 
             slug = station_slug(dataset)
             station_daily = daily.assign(
@@ -502,11 +674,13 @@ def build_archive() -> bytes:
                 .ge(station_daily["climatology_max"])
                 .sum()
             )
-            current_year_days_exceeding_historical_p90 = int(
-                station_daily["current_year_daily_mean"]
-                .gt(station_daily["historical_climatology_p90"])
-                .sum()
-            )
+            current_year_days_exceeding_historical_p90 = None
+            if "historical_climatology_p90" in station_daily:
+                current_year_days_exceeding_historical_p90 = int(
+                    station_daily["current_year_daily_mean"]
+                    .gt(station_daily["historical_climatology_p90"])
+                    .sum()
+                )
 
             manifest["stations"].append(
                 {
@@ -530,7 +704,10 @@ def build_archive() -> bytes:
                     ],
                     "current_year_days_exceeding_historical_max": current_year_days_exceeding_historical_max,
                     "current_year_days_exceeding_historical_p90": current_year_days_exceeding_historical_p90,
-                    "source_url": f"{dataset['server']}/tabledap/{dataset['dataset_id']}.html",
+                    "source_url": dataset.get(
+                        "source_url",
+                        f"{dataset['server']}/tabledap/{dataset['dataset_id']}.html",
+                    ),
                 }
             )
 
