@@ -493,7 +493,7 @@ export function WaterTemperatureClimatology({
     createElement(
       "div",
       {className: "climatology-card__notes"},
-      `Historic climatology for ${stationName} calculated from ${formatYearRange(historicalStartYear, historicalEndYear)} smoothed over an 11 day window. This year to date, ${stationName} has observed ${formatDayCount(currentYearDaysExceedingHistoricalMax)} new maximum daily mean temperatures.`,
+      `The long-term average for ${stationName}, calculated from ${formatYearRange(historicalStartYear, historicalEndYear)}, use observations within five calendar days on either side of each day of the year. These seasonal reference curves are then smoothed using a circular 31-day moving mean. This year to date, ${stationName} has observed ${formatDayCount(currentYearDaysExceedingHistoricalMax)} new maximum daily mean temperatures.`,
       createElement("br"),
       "Source: ",
       sourceUrl

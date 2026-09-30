@@ -168,6 +168,8 @@ TIME_VARIABLE = "time"
 VALID_TEMPERATURE_QC_FLAGS = {1,2}
 DOWNLOAD_RETRIES = 1
 RETRY_DELAY_SECONDS = 2
+CLIMATOLOGY_POOLING_WINDOW = 11
+CLIMATOLOGY_SMOOTHING_WINDOW = 31
 
 
 def load_dataset_info(server: str, dataset_id: str) -> dict:
@@ -520,6 +522,51 @@ def climatology_day_of_year(series: pd.Series) -> pd.Series:
     return adjusted
 
 
+def circular_rolling_mean(
+    frame: pd.DataFrame, columns: List[str], window: int
+) -> pd.DataFrame:
+    """Smooth climatological day-of-year values across the Dec./Jan. boundary."""
+    if frame.empty:
+        return frame
+
+    result = frame.sort_values("day_of_year").reset_index(drop=True).copy()
+    radius = window // 2
+    padded = pd.concat(
+        [result.iloc[-radius:], result, result.iloc[:radius]], ignore_index=True
+    )
+    for column in columns:
+        smoothed = padded[column].rolling(window=window, center=True, min_periods=1).mean()
+        result[column] = smoothed.iloc[radius : radius + len(result)].to_numpy()
+    return result
+
+
+def pooled_day_of_year_statistics(
+    frame: pd.DataFrame, value_column: str, window: int
+) -> pd.DataFrame:
+    """Calculate climatology statistics from circular calendar-day neighborhoods."""
+    if frame.empty:
+        return pd.DataFrame(columns=["day_of_year", "mean", "min", "max", "p90"])
+
+    radius = window // 2
+    records = []
+    for day_of_year in sorted(frame["day_of_year"].unique()):
+        neighborhood = {
+            ((day_of_year + offset - 1) % 365) + 1
+            for offset in range(-radius, radius + 1)
+        }
+        values = frame.loc[frame["day_of_year"].isin(neighborhood), value_column]
+        records.append(
+            {
+                "day_of_year": day_of_year,
+                "mean": values.mean(),
+                "min": values.min(),
+                "max": values.max(),
+                "p90": values.quantile(0.9),
+            }
+        )
+    return pd.DataFrame(records)
+
+
 def build_daily_products(
     frame: pd.DataFrame, temperature_variable: str
 ) -> Tuple[pd.DataFrame, Dict[str, Optional[int]]]:
@@ -557,20 +604,20 @@ def build_daily_products(
     historical_daily = (
         daily[daily["year"] < current_year].sort_values("time").copy()
     )
-    historical_daily["historical_rolling_daily_mean"] = (
-        historical_daily["daily_mean"].rolling(window=11, center=True).mean()
+    historical_climatology = pooled_day_of_year_statistics(
+        historical_daily, "daily_mean", CLIMATOLOGY_POOLING_WINDOW
+    ).rename(
+        columns={
+            "mean": "historical_climatology_mean",
+            "min": "historical_climatology_min",
+            "max": "historical_climatology_max",
+            "p90": "historical_climatology_p90",
+        }
     )
-    historical_climatology = (
-        historical_daily.groupby("day_of_year", as_index=False)
-        .agg(
-            historical_climatology_mean=("historical_rolling_daily_mean", "mean"),
-            historical_climatology_min=("historical_rolling_daily_mean", "min"),
-            historical_climatology_max=("historical_rolling_daily_mean", "max"),
-            historical_climatology_p90=(
-                "historical_rolling_daily_mean",
-                lambda values: values.quantile(0.9),
-            ),
-        )
+    historical_climatology = circular_rolling_mean(
+        historical_climatology,
+        ["historical_climatology_mean", "historical_climatology_p90"],
+        CLIMATOLOGY_SMOOTHING_WINDOW,
     )
 
     current_year_daily = daily[daily["year"] == current_year][
@@ -606,7 +653,7 @@ def build_daily_products(
                 "historical_climatology_min",
                 "historical_climatology_max",
                 "historical_climatology_mean",
-                #"historical_climatology_p90",
+                "historical_climatology_p90",
                 "year_to_date_anomaly",
             ]
         ],
@@ -640,6 +687,8 @@ def build_archive() -> bytes:
             "Dates after Feb. 29 in leap years are remapped down by one day_of_year.",
             "climatology_min and climatology_max summarize daily_mean across all years for each day_of_year.",
             "historical_climatology_mean excludes the current year.",
+            "The long-term average and 90th percentile pool daily means from the target calendar day plus five days before and after, wrapping across Dec. 31/Jan. 1.",
+            "These seasonal reference curves are then smoothed with a centered, circular 31-day moving mean to reduce short-term variability while preserving the annual cycle.",
             "current_year_daily_mean is the current year's daily_mean for that day_of_year when available.",
             "year_to_date_anomaly is current_year_daily_mean minus the historical climatological daily mean for the same day_of_year.",
             f"Only observations with temperature QC flags in {sorted(VALID_TEMPERATURE_QC_FLAGS)} are retained when a temperature_qc_field is configured.",
