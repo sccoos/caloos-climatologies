@@ -1,5 +1,6 @@
-# el-nino-dashboard
-El Niño in Coastal California: Data &amp; Visualization Dashboard
+# caloos-climatologies
+
+CalOOS coastal-water climatologies dashboard.
 
 ## Authenticated PMEL moorings
 

@@ -1,7 +1,7 @@
 // Dashboard configuration
 export default {
   root: "src",
-  title: "CalOOS ENSO Dashboard",
+  title: "CalOOS Climatologies",
   theme: ["default", "alt", "wide"],
   sidebar: false,
   header: false,
