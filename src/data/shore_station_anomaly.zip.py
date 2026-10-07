@@ -697,6 +697,7 @@ def build_archive() -> bytes:
     manifest = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "stations": [],
+        "failed_stations": [],
         "notes": [
             "Daily values are computed from full-resolution ERDDAP observations binned by UTC day.",
             "Each output row represents one day_of_year climatology.",
@@ -722,7 +723,16 @@ def build_archive() -> bytes:
                 frame, temperature_variable, temperature_qc_variable, latitude, longitude = fetch_station_data(dataset)
                 daily, climatology_metadata = build_daily_products(frame, temperature_variable)
             except Exception as exc:
-                raise RuntimeError(f"Failed to process station '{station_name}': {exc}") from exc
+                manifest["failed_stations"].append(
+                    {
+                        "name": station_name,
+                        "dataset_id": dataset["dataset_id"],
+                        "station_key": station_slug(dataset),
+                        "type": dataset["type"],
+                        "error": str(exc),
+                    }
+                )
+                continue
 
             slug = station_slug(dataset)
             station_daily = daily.assign(
@@ -777,11 +787,24 @@ def build_archive() -> bytes:
                 }
             )
 
+        if not station_frames:
+            raise RuntimeError("All station downloads failed; no climatology archive was generated.")
+
         combined = pd.concat(station_frames, ignore_index=True)
         parquet_buffer = io.BytesIO()
         combined.to_parquet(parquet_buffer, index=False)
         archive.writestr("shore_station_climatology.parquet", parquet_buffer.getvalue())
         archive.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+    if manifest["failed_stations"]:
+        failed_station_summary = "; ".join(
+            f"{failure['name']} ({failure['dataset_id']}): {failure['error']}"
+            for failure in manifest["failed_stations"]
+        )
+        print(
+            f"Skipped {len(manifest['failed_stations'])} station download(s): {failed_station_summary}",
+            file=sys.stderr,
+        )
 
     return buffer.getvalue()
 

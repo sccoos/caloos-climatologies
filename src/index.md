@@ -15,34 +15,42 @@ const loadingSpinner = renderLoadingSpinner({label: "Loading dashboard data"});
 page.append(loadingSpinner);
 display(page);
 
-const [ensoAlertStatus, maplibreWorkerUrl, shoreStationManifest, shoreStationRows] = await Promise.all([
+const [ensoAlertStatus, maplibreWorkerUrl, shoreStationManifest, shoreStationRows, stationCitations] = await Promise.all([
   FileAttachment("data/ENSO_alert_status.json").json(),
   FileAttachment("data/maplibre-gl-worker.bundle.js").url(),
   FileAttachment("data/shore_station_anomaly/manifest.json").json(),
-  sql`SELECT * FROM shore_station_climatology`
+  sql`SELECT * FROM shore_station_climatology`,
+  FileAttachment("data/station_citations.json").json()
 ]);
 //const ensoAlertCard = renderENSOAlertCard(ensoAlertStatus);
 const shoreStationRowsByKey = Object.groupBy(shoreStationRows, (row) => row.station_key);
-const shoreStationOptions = shoreStationManifest.stations
-  .map((station) => ({
+const shoreStationOptions = [
+  ...shoreStationManifest.stations.map((station) => ({
     key: station.station_key,
     name: station.name,
     type: station.type,
+    disabled: false,
     latitude: station.latitude,
     source_url: station.source_url,
     historical_climatology_start_year: station.historical_climatology_start_year,
     historical_climatology_end_year: station.historical_climatology_end_year,
     current_year_days_exceeding_historical_max: station.current_year_days_exceeding_historical_max,
     current_year_days_exceeding_historical_p90: station.current_year_days_exceeding_historical_p90
+  })),
+  ...(shoreStationManifest.failed_stations ?? []).map((station) => ({
+    key: station.station_key,
+    name: station.name,
+    type: station.type,
+    disabled: true
   }))
-  .filter((station) => shoreStationRowsByKey[station.key]?.length);
+].filter((station) => station.disabled || shoreStationRowsByKey[station.key]?.length);
 const requestedSiteName = (new URLSearchParams(location.search).get("site") ?? "")
   .trim()
   .replace(/^["']|["']$/g, "")
   .toLocaleLowerCase();
 const initialStationKey = shoreStationOptions.find(
-  (station) => station.name.toLocaleLowerCase() === requestedSiteName
-)?.key ?? "humboldt";
+  (station) => !station.disabled && station.name.toLocaleLowerCase() === requestedSiteName
+)?.key ?? shoreStationOptions.find((station) => !station.disabled)?.key ?? null;
 const stationMap = renderMHWMap({
   title: "Observations Map",
   stations: shoreStationManifest.stations,
@@ -55,6 +63,7 @@ const stationMap = renderMHWMap({
 const shoreStationClimatologyPlot = renderSelectableWaterTemperatureClimatology({
   stationRowsByKey: shoreStationRowsByKey,
   stationOptions: shoreStationOptions,
+  stationCitationsByKey: stationCitations.citations,
   initialStationKey,
   onStationChange: (stationKey) => {
     stationMap.flyToStation?.(stationKey);

@@ -1,6 +1,7 @@
 import {createElement, useId, useState} from "npm:react";
 import {createRoot} from "npm:react-dom/client";
 import * as d3 from "npm:d3";
+import {CitationModal} from "./CitationModal.js";
 
 const DEFAULT_WIDTH = 760;
 const DEFAULT_HEIGHT = 360;
@@ -48,13 +49,16 @@ export function WaterTemperatureClimatology({
   historicalEndYear = null,
   currentYearDaysExceedingHistoricalMax = null,
   currentYearDaysExceedingHistoricalP90 = null,
+  citationRecord = null,
   sourceUrl = null,
   width = DEFAULT_WIDTH,
   height = DEFAULT_HEIGHT,
   margin = DEFAULT_MARGIN
 }) {
   const plotId = useId();
+  const citationPopupId = `${plotId}-citation`;
   const [internalHoveredDay, setInternalHoveredDay] = useState(null);
+  const [isCitationOpen, setIsCitationOpen] = useState(false);
   const activeHoveredDay = hoveredDay ?? internalHoveredDay;
   const normalizedRows = normalizeRows(rows);
 
@@ -197,9 +201,10 @@ export function WaterTemperatureClimatology({
                         "option",
                         {
                           key: station.key,
-                          value: station.key
+                          value: station.key,
+                          disabled: station.disabled === true
                         },
-                        station.name
+                        station.disabled ? `${station.name} (unavailable)` : station.name
                       )
                     )
                   )
@@ -208,7 +213,32 @@ export function WaterTemperatureClimatology({
             )
           : createElement("h3", {className: "climatology-card__title"}, stationName)
       ),
+      createElement(
+        "div",
+        {className: "climatology-card__citation-control"},
+        createElement(
+          "button",
+          {
+            type: "button",
+            className: "climatology-card__citation-button",
+            "aria-label": `View citation for ${stationName}`,
+            "aria-controls": citationPopupId,
+            "aria-expanded": isCitationOpen,
+            title: "View data citation",
+            onClick: () => setIsCitationOpen((open) => !open)
+          },
+          "i"
+        )
+      )
     ),
+    isCitationOpen
+      ? createElement(CitationModal, {
+          id: citationPopupId,
+          stationName,
+          citationRecord,
+          onClose: () => setIsCitationOpen(false)
+        })
+      : null,
     createElement(
       "svg",
       {
@@ -663,6 +693,7 @@ export function renderWaterTemperatureClimatology(rows, options = {}) {
 function SelectableWaterTemperatureClimatology({
   stationRowsByKey,
   stationOptions,
+  stationCitationsByKey,
   initialStationKey,
   onStationChange,
   hoveredDay,
@@ -702,6 +733,7 @@ function SelectableWaterTemperatureClimatology({
       selectedStation?.current_year_days_exceeding_historical_max ?? null,
     currentYearDaysExceedingHistoricalP90:
       selectedStation?.current_year_days_exceeding_historical_p90 ?? null,
+    citationRecord: selectedStation ? stationCitationsByKey?.[selectedStation.key] ?? null : null,
     sourceUrl: selectedStation?.source_url ?? null,
     width,
     height,
@@ -712,6 +744,7 @@ function SelectableWaterTemperatureClimatology({
 export function renderSelectableWaterTemperatureClimatology({
   stationRowsByKey,
   stationOptions,
+  stationCitationsByKey = {},
   initialStationKey = null,
   onStationChange = null,
   hoveredDay = null,
@@ -727,6 +760,7 @@ export function renderSelectableWaterTemperatureClimatology({
       createElement(SelectableWaterTemperatureClimatology, {
         stationRowsByKey,
         stationOptions,
+        stationCitationsByKey,
         initialStationKey,
         onStationChange,
         hoveredDay,

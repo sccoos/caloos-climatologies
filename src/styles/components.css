@@ -116,6 +116,7 @@
   box-sizing: border-box;
   padding: 0.5rem clamp(0.5rem, 2vw, 1.25rem) 0;
   width: 100%;
+  position: relative;
 }
 
 .climatology-card__header-left {
@@ -123,6 +124,211 @@
   justify-items: center;
   min-width: 0;
   text-align: center;
+}
+
+.climatology-card__citation-control {
+  position: absolute;
+  top: 0.5rem;
+  right: clamp(0.5rem, 2vw, 1.25rem);
+  z-index: 2;
+}
+
+.climatology-card__citation-button,
+.climatology-card__citation-close {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.climatology-card__citation-button {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #aeb9c5;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #52667a;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-style: italic;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.climatology-card__citation-button:hover,
+.climatology-card__citation-button:focus-visible {
+  border-color: #6f8192;
+  background: #d9e0e7;
+  color: #243b53;
+}
+
+.climatology-card__citation-button:focus-visible,
+.climatology-card__citation-close:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.climatology-card__citation-modal {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.climatology-card__citation-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(16, 42, 67, 0.45);
+  cursor: default;
+}
+
+.climatology-card__citation-popup {
+  position: relative;
+  z-index: 1;
+  width: min(34rem, 100%);
+  max-height: min(38rem, calc(100vh - 2rem));
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border: 1px solid #cbd5df;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #243b53;
+  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.32);
+  text-align: left;
+}
+
+.climatology-card__citation-label {
+  margin: 0;
+  color: #627d98;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.climatology-card__citation-close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #486581;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.climatology-card__citation-close:hover {
+  background: #edf1f5;
+  color: #243b53;
+}
+
+.climatology-card__citation-content {
+  margin-top: 0.2rem;
+  padding-right: 1.75rem;
+}
+
+.climatology-card__citation-dataset {
+  width: 80%;
+  margin: 0 auto 1rem;
+  color: #334e68;
+  font-size: 0.96rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.climatology-card__citation-label {
+  margin-bottom: 0.35rem;
+}
+
+.climatology-card__citation-text {
+  margin: 0;
+  color: #486581;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.climatology-card__citation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.climatology-card__citation-link {
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.climatology-card__citation-copy {
+  display: inline-flex;
+  width: 1.65em;
+  height: 1.65em;
+  margin-left: 0.4em;
+  padding: 0.28em;
+  vertical-align: middle;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #334e68;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+
+.climatology-card__citation-copy svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.climatology-card__citation-copy:hover,
+.climatology-card__citation-copy:focus-visible {
+  background: #edf1f5;
+}
+
+.climatology-card__citation-copy.is-copied {
+  transform: scale(1.08);
+}
+
+.climatology-card__citation-copy.is-copied svg,
+.climatology-card__citation-copy.is-resetting svg {
+  animation: citation-copy-icon-in 500ms ease-out both;
+}
+
+@keyframes citation-copy-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.climatology-card__citation-copy:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.climatology-card__citation-link {
+  margin-left: auto;
+  color: #0f766e;
 }
 
 .climatology-card__legend-overlay {
