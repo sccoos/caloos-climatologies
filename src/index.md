@@ -35,6 +35,7 @@ const shoreStationOptions = [
     historical_climatology_start_year: station.historical_climatology_start_year,
     historical_climatology_end_year: station.historical_climatology_end_year,
     current_year_days_exceeding_historical_max: station.current_year_days_exceeding_historical_max,
+    current_year_days_at_or_below_historical_min: station.current_year_days_at_or_below_historical_min,
     current_year_days_exceeding_historical_p90: station.current_year_days_exceeding_historical_p90
   })),
   ...(shoreStationManifest.failed_stations ?? []).map((station) => ({

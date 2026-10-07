@@ -47,6 +47,7 @@ export function WaterTemperatureClimatology({
   historicalStartYear = null,
   historicalEndYear = null,
   currentYearDaysExceedingHistoricalMax = null,
+  currentYearDaysAtOrBelowHistoricalMin = null,
   currentYearDaysExceedingHistoricalP90 = null,
   citationRecord = null,
   sourceUrl = null,
@@ -112,6 +113,14 @@ export function WaterTemperatureClimatology({
   const historicalMeanSeries = normalizedRows.map((row) => ({
     day_of_year: row.day_of_year,
     value: row.historical_climatology_mean
+  }));
+  const historicalP10Series = normalizedRows.map((row) => ({
+    day_of_year: row.day_of_year,
+    value: row.historical_climatology_p10
+  }));
+  const historicalP90Series = normalizedRows.map((row) => ({
+    day_of_year: row.day_of_year,
+    value: row.historical_climatology_p90
   }));
   const area = d3.area()
     .defined((d) =>
@@ -335,6 +344,20 @@ export function WaterTemperatureClimatology({
           strokeDasharray: "5 5"
         }),
         createElement("path", {
+          d: lineOrNull(line, historicalP10Series),
+          fill: "none",
+          stroke: "#8a94a6",
+          strokeWidth: 1.2,
+          strokeDasharray: "4 3"
+        }),
+        createElement("path", {
+          d: lineOrNull(line, historicalP90Series),
+          fill: "none",
+          stroke: "#8a94a6",
+          strokeWidth: 1.2,
+          strokeDasharray: "4 3"
+        }),
+        createElement("path", {
           d: lineOrNull(line, currentYearSeries),
           fill: "none",
           stroke: "#111111",
@@ -422,8 +445,8 @@ export function WaterTemperatureClimatology({
             },
             createElement("div", {className: "climatology-card__legend"},
               legendItem("#111111", "Historical mean", "dashed"),
+              legendItem("#8a94a6", "Historical 10%-90% envelope", "dashed"),
               legendItem("#111111", "Current year"),
-              legendItem("#8a94a6", "Historical 10th–90th percentile range")
             )
           )
         ),
@@ -476,8 +499,8 @@ export function WaterTemperatureClimatology({
               fontWeight: 700
             }, "Historical"),
             tooltipText(12, 76, "#ffffff", `Mean: ${formatTemperature(hoveredRow.historical_climatology_mean)}`),
-            tooltipText(12, 92, "#d1d5db", `P90: ${formatTemperature(hoveredRow.historical_climatology_p90)}`),
-            tooltipText(12, 108, "#d1d5db", `P10: ${formatTemperature(hoveredRow.historical_climatology_p10)}`)
+            tooltipText(12, 92, "#d1d5db", `90th %: ${formatTemperature(hoveredRow.historical_climatology_p90)}`),
+            tooltipText(12, 108, "#d1d5db", `10th %: ${formatTemperature(hoveredRow.historical_climatology_p10)}`)
           )
         ) : null
       )
@@ -485,7 +508,7 @@ export function WaterTemperatureClimatology({
     createElement(
       "div",
       {className: "climatology-card__notes"},
-      `The long-term average for ${stationName}, calculated from ${formatYearRange(historicalStartYear, historicalEndYear)}, use observations within five calendar days on either side of each day of the year. These seasonal reference curves are then smoothed using a circular 31-day moving mean. This year to date, ${stationName} has observed ${formatDayCount(currentYearDaysExceedingHistoricalMax)} new maximum daily mean temperatures.`,
+      `The long-term average for ${stationName}, calculated from ${formatYearRange(historicalStartYear, historicalEndYear)}, use observations within five calendar days on either side of each day of the year. These seasonal reference curves are then smoothed using a circular 31-day moving mean. This year to date, ${stationName} has observed ${formatDayCount(currentYearDaysExceedingHistoricalMax)} new maximum daily mean temperatures and ${formatDayCount(currentYearDaysAtOrBelowHistoricalMin)} new minimum daily mean temperatures.`,
       createElement("br"),
       "Source: ",
       sourceUrl
@@ -637,8 +660,7 @@ function legendItem(color, label, style = "solid") {
     createElement("span", {
       className: "climatology-card__legend-swatch",
       style: {
-        background: style === "solid" ? color : "transparent",
-        border: `2px ${style === "dashed" ? "dashed" : "solid"} ${color}`
+        borderTop: `2px ${style === "dashed" ? "dashed" : "solid"} ${color}`
       }
     }),
     createElement("span", null, label)
@@ -693,6 +715,8 @@ function SelectableWaterTemperatureClimatology({
     historicalEndYear: selectedStation?.historical_climatology_end_year ?? null,
     currentYearDaysExceedingHistoricalMax:
       selectedStation?.current_year_days_exceeding_historical_max ?? null,
+    currentYearDaysAtOrBelowHistoricalMin:
+      selectedStation?.current_year_days_at_or_below_historical_min ?? null,
     currentYearDaysExceedingHistoricalP90:
       selectedStation?.current_year_days_exceeding_historical_p90 ?? null,
     citationRecord: selectedStation ? stationCitationsByKey?.[selectedStation.key] ?? null : null,

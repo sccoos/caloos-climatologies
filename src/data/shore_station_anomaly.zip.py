@@ -761,6 +761,11 @@ def build_archive() -> bytes:
                 .ge(station_daily["climatology_max"])
                 .sum()
             )
+            current_year_days_at_or_below_historical_min = int(
+                station_daily["current_year_daily_mean"]
+                .le(station_daily["climatology_min"])
+                .sum()
+            )
             current_year_days_exceeding_historical_p90 = None
             if "historical_climatology_p90" in station_daily:
                 current_year_days_exceeding_historical_p90 = int(
@@ -790,6 +795,7 @@ def build_archive() -> bytes:
                         "historical_climatology_end_year"
                     ],
                     "current_year_days_exceeding_historical_max": current_year_days_exceeding_historical_max,
+                    "current_year_days_at_or_below_historical_min": current_year_days_at_or_below_historical_min,
                     "current_year_days_exceeding_historical_p90": current_year_days_exceeding_historical_p90,
                     "source_url": dataset.get(
                         "source_url",
