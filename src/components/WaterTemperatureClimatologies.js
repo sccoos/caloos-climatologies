@@ -15,9 +15,8 @@ function normalizeRows(rows) {
       year: toNumber(row.year),
       day_of_year: Number(row.day_of_year),
       current_year_daily_mean: toNumber(row.current_year_daily_mean),
-      climatology_min: toNumber(row.historical_climatology_min),
-      climatology_max: toNumber(row.historical_climatology_max),
       historical_climatology_mean: toNumber(row.historical_climatology_mean),
+      historical_climatology_p10: toNumber(row.historical_climatology_p10),
       historical_climatology_p90: toNumber(row.historical_climatology_p90),
       year_to_date_anomaly: toNumber(row.year_to_date_anomaly)
     }))
@@ -82,9 +81,8 @@ export function WaterTemperatureClimatology({
   const innerHeight = height - margin.top - margin.bottom;
   const yValues = normalizedRows.flatMap((row) => [
     row.current_year_daily_mean,
-    row.climatology_min,
-    row.climatology_max,
     row.historical_climatology_mean,
+    row.historical_climatology_p10,
     row.historical_climatology_p90
   ]).filter(Number.isFinite);
 
@@ -115,24 +113,14 @@ export function WaterTemperatureClimatology({
     day_of_year: row.day_of_year,
     value: row.historical_climatology_mean
   }));
-  const historicalP90Series = normalizedRows.map((row) => ({
-    day_of_year: row.day_of_year,
-    value: row.historical_climatology_p90
-  }));
-  const climatologyMinSeries = normalizedRows.map((row) => ({
-    day_of_year: row.day_of_year,
-    value: row.climatology_min
-  }));
-  const climatologyMaxSeries = normalizedRows.map((row) => ({
-    day_of_year: row.day_of_year,
-    value: row.climatology_max
-  }));
-
   const area = d3.area()
-    .defined((d) => Number.isFinite(d.climatology_min) && Number.isFinite(d.climatology_max))
+    .defined((d) =>
+      Number.isFinite(d.historical_climatology_p10) &&
+      Number.isFinite(d.historical_climatology_p90)
+    )
     .x((d) => xScale(d.day_of_year))
-    .y0((d) => yScale(d.climatology_min))
-    .y1((d) => yScale(d.climatology_max));
+    .y0((d) => yScale(d.historical_climatology_p10))
+    .y1((d) => yScale(d.historical_climatology_p90));
 
   const areaPath = area(normalizedRows);
   const anomalyColor = d3.scaleLinear()
@@ -166,8 +154,8 @@ export function WaterTemperatureClimatology({
     ? yScale(firstFiniteValue([
         hoveredRow.current_year_daily_mean,
         hoveredRow.historical_climatology_mean,
-        hoveredRow.climatology_max,
-        hoveredRow.climatology_min
+        hoveredRow.historical_climatology_p90,
+        hoveredRow.historical_climatology_p10
       ]))
     : null;
 
@@ -346,36 +334,12 @@ export function WaterTemperatureClimatology({
           strokeWidth: 1.5,
           strokeDasharray: "5 5"
         }),
-        createElement(
-          "g",
-          null,
-          createElement("path", {
-            d: lineOrNull(line, climatologyMinSeries),
-            fill: "none",
-            stroke: "#b6c0cc",
-            strokeWidth: 1.2
-          }),
-          createElement("path", {
-            d: lineOrNull(line, climatologyMaxSeries),
-            fill: "none",
-            stroke: "#b6c0cc",
-            strokeWidth: 1.2
-          })
-        ),
         createElement("path", {
           d: lineOrNull(line, currentYearSeries),
           fill: "none",
           stroke: "#111111",
           strokeWidth: 1.8
         }),
-        // Historical 90th-percentile line intentionally disabled.
-        // createElement("path", {
-        //   d: lineOrNull(line, historicalP90Series),
-        //   fill: "none",
-        //   stroke: "#2f855a",
-        //   strokeWidth: 1.8,
-        //   strokeDasharray: "6 4"
-        // }),
         createElement("line", {
           x1: 0,
           x2: innerWidth,
@@ -458,10 +422,8 @@ export function WaterTemperatureClimatology({
             },
             createElement("div", {className: "climatology-card__legend"},
               legendItem("#111111", "Historical mean", "dashed"),
-              // Historical 90th-percentile legend item is disabled with its line.
-              // legendItem("#2f855a", "Historical 90th percentile", "dashed"),
               legendItem("#111111", "Current year"),
-              legendItem("#8a94a6", "Climatology range")
+              legendItem("#8a94a6", "Historical 10th–90th percentile range")
             )
           )
         ),
@@ -477,8 +439,8 @@ export function WaterTemperatureClimatology({
             strokeDasharray: "4 4",
             opacity: 0.45
           }),
-          tooltipDot(tooltipX, yScale(hoveredRow.climatology_min), "#b6c0cc"),
-          tooltipDot(tooltipX, yScale(hoveredRow.climatology_max), "#b6c0cc"),
+          tooltipDot(tooltipX, yScale(hoveredRow.historical_climatology_p10), "#b6c0cc"),
+          tooltipDot(tooltipX, yScale(hoveredRow.historical_climatology_p90), "#b6c0cc"),
           tooltipDot(tooltipX, yScale(hoveredRow.historical_climatology_mean), "#111111"),
           Number.isFinite(hoveredRow.current_year_daily_mean)
             ? tooltipDot(tooltipX, yScale(hoveredRow.current_year_daily_mean), "#111111")
@@ -514,8 +476,8 @@ export function WaterTemperatureClimatology({
               fontWeight: 700
             }, "Historical"),
             tooltipText(12, 76, "#ffffff", `Mean: ${formatTemperature(hoveredRow.historical_climatology_mean)}`),
-            tooltipText(12, 92, "#d1d5db", `Max: ${formatTemperature(hoveredRow.climatology_max)}`),
-            tooltipText(12, 108, "#d1d5db", `Min: ${formatTemperature(hoveredRow.climatology_min)}`)
+            tooltipText(12, 92, "#d1d5db", `P90: ${formatTemperature(hoveredRow.historical_climatology_p90)}`),
+            tooltipText(12, 108, "#d1d5db", `P10: ${formatTemperature(hoveredRow.historical_climatology_p10)}`)
           )
         ) : null
       )

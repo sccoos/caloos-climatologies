@@ -516,7 +516,6 @@ def climatology_day_of_year(series: pd.Series) -> pd.Series:
     adjusted = day_of_year.where(~leap_day)
 
     # Shift leap-year dates after Feb. 29 back by one day.
-    # TODO fix this logic, 
     after_feb_29 = (series.dt.is_leap_year) & ((month > 2) | ((month == 2) & (day > 29)))
     adjusted = adjusted.where(~after_feb_29, adjusted - 1)
     return adjusted
@@ -555,7 +554,7 @@ def pooled_day_of_year_statistics(
 ) -> pd.DataFrame:
     """Calculate climatology statistics from circular calendar-day neighborhoods."""
     if frame.empty:
-        return pd.DataFrame(columns=["day_of_year", "mean", "p90"])
+        return pd.DataFrame(columns=["day_of_year", "mean", "p10", "p90"])
 
     radius = window // 2
     pooled = pd.concat(
@@ -571,6 +570,7 @@ def pooled_day_of_year_statistics(
         pooled.groupby("day_of_year", as_index=False)
         .agg(
             mean=(value_column, "mean"),
+            p10=(value_column, lambda values: values.quantile(0.1)),
             p90=(value_column, lambda values: values.quantile(0.9)),
         )
     )
@@ -618,6 +618,7 @@ def build_daily_products(
     ).rename(
         columns={
             "mean": "historical_climatology_mean",
+            "p10": "historical_climatology_p10",
             "p90": "historical_climatology_p90",
         }
     )
@@ -629,11 +630,20 @@ def build_daily_products(
         )
     )
     historical_climatology = historical_climatology[
-        ["day_of_year", "historical_climatology_mean", "historical_climatology_p90"]
+        [
+            "day_of_year",
+            "historical_climatology_mean",
+            "historical_climatology_p10",
+            "historical_climatology_p90",
+        ]
     ].merge(historical_range, on="day_of_year", how="left")
     historical_climatology = circular_rolling_mean(
         historical_climatology,
-        ["historical_climatology_mean", "historical_climatology_p90"],
+        [
+            "historical_climatology_mean",
+            "historical_climatology_p10",
+            "historical_climatology_p90",
+        ],
         CLIMATOLOGY_SMOOTHING_WINDOW,
     )
 
@@ -670,6 +680,7 @@ def build_daily_products(
                 "historical_climatology_min",
                 "historical_climatology_max",
                 "historical_climatology_mean",
+                "historical_climatology_p10",
                 "historical_climatology_p90",
                 "year_to_date_anomaly",
             ]
@@ -705,7 +716,7 @@ def build_archive() -> bytes:
             "Dates after Feb. 29 in leap years are remapped down by one day_of_year.",
             "climatology_min and climatology_max summarize daily_mean across all years for each day_of_year.",
             "historical_climatology_mean excludes the current year.",
-            "The long-term average and 90th percentile pool daily means from the target calendar day plus five days before and after, wrapping across Dec. 31/Jan. 1.",
+            "The long-term average, 10th percentile, and 90th percentile pool daily means from the target calendar day plus five days before and after, wrapping across Dec. 31/Jan. 1.",
             "These seasonal reference curves are then smoothed with a centered, circular 31-day moving mean to reduce short-term variability while preserving the annual cycle.",
             "current_year_daily_mean is the current year's daily_mean for that day_of_year when available.",
             "year_to_date_anomaly is current_year_daily_mean minus the historical climatological daily mean for the same day_of_year.",
