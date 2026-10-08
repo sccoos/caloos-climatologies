@@ -1,4 +1,4 @@
-import {createElement, useId, useState} from "npm:react";
+import {createElement, useEffect, useId, useState} from "npm:react";
 import {createRoot} from "npm:react-dom/client";
 import * as d3 from "npm:d3";
 import {CitationModal} from "./CitationModal.js";
@@ -680,6 +680,7 @@ function SelectableWaterTemperatureClimatology({
   stationCitationsByKey,
   initialStationKey,
   onStationChange,
+  parentMessageOrigin = null,
   hoveredDay,
   onHoveredDayChange,
   apiRef,
@@ -695,6 +696,27 @@ function SelectableWaterTemperatureClimatology({
     setSelectedStationKey(nextStationKey);
     onStationChange?.(nextStationKey);
   };
+
+  useEffect(() => {
+    if (!parentMessageOrigin) return undefined;
+
+    const handleParentMessage = (event) => {
+      if (event.origin !== parentMessageOrigin) return;
+      if (event.data?.type !== "caloos:set-site" || typeof event.data.site !== "string") return;
+
+      const requestedSiteName = event.data.site
+        .trim()
+        .replace(/^["']|["']$/g, "")
+        .toLocaleLowerCase();
+      const station = stationOptions.find(
+        (option) => !option.disabled && option.name.toLocaleLowerCase() === requestedSiteName
+      );
+      if (station) handleStationChange(station.key);
+    };
+
+    window.addEventListener("message", handleParentMessage);
+    return () => window.removeEventListener("message", handleParentMessage);
+  }, [parentMessageOrigin, stationOptions, handleStationChange]);
 
   if (apiRef) {
     apiRef.current = {
@@ -733,6 +755,7 @@ export function renderSelectableWaterTemperatureClimatology({
   stationCitationsByKey = {},
   initialStationKey = null,
   onStationChange = null,
+  parentMessageOrigin = null,
   hoveredDay = null,
   onHoveredDayChange = null,
   width,
@@ -749,6 +772,7 @@ export function renderSelectableWaterTemperatureClimatology({
         stationCitationsByKey,
         initialStationKey,
         onStationChange,
+        parentMessageOrigin,
         hoveredDay,
         onHoveredDayChange,
         apiRef,

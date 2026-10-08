@@ -52,6 +52,7 @@ const requestedSiteName = (new URLSearchParams(location.search).get("site") ?? "
 const initialStationKey = shoreStationOptions.find(
   (station) => !station.disabled && station.name.toLocaleLowerCase() === requestedSiteName
 )?.key ?? shoreStationOptions.find((station) => !station.disabled)?.key ?? null;
+const parentMessageOrigin = "https://enso.caloos.org";
 const stationMap = renderMHWMap({
   title: "Observations Map",
   stations: shoreStationManifest.stations,
@@ -66,6 +67,7 @@ const shoreStationClimatologyPlot = renderSelectableWaterTemperatureClimatology(
   stationOptions: shoreStationOptions,
   stationCitationsByKey: stationCitations.citations,
   initialStationKey,
+  parentMessageOrigin,
   onStationChange: (stationKey) => {
     stationMap.flyToStation?.(stationKey);
     const station = shoreStationOptions.find((option) => option.key === stationKey);
