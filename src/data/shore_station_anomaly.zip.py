@@ -19,6 +19,8 @@ from erddapy import ERDDAP
 
 
 # Shore station datasets from the CalOOS ERDDAP.
+MAX_FAILED_STATION_DOWNLOADS = 5
+
 DATASETS = [
     {
         "name": "Humboldt",
@@ -743,6 +745,16 @@ def build_archive() -> bytes:
                         "error": str(exc),
                     }
                 )
+                if len(manifest["failed_stations"]) >= MAX_FAILED_STATION_DOWNLOADS:
+                    failed_station_summary = "; ".join(
+                        f"{failure['name']} ({failure['dataset_id']}): {failure['error']}"
+                        for failure in manifest["failed_stations"]
+                    )
+                    raise RuntimeError(
+                        f"Aborting climatology archive generation after "
+                        f"{len(manifest['failed_stations'])} station download failures: "
+                        f"{failed_station_summary}"
+                    )
                 continue
 
             slug = station_slug(dataset)
