@@ -10,7 +10,6 @@
     "dev:refresh": "npm run build:shore-station-data && observable preview",
     "deploy": "observable deploy",
     "observable": "observable",
-    "install": "pip3 install -r requirements.txt",
     "test": "node --test"
   },
   "dependencies": {
