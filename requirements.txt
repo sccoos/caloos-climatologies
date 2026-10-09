@@ -6,4 +6,4 @@ scipy
 Pillow
 erddapy
 pandas
-pyarrow
+pyarrow==21.0.0
