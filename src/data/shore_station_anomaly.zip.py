@@ -119,6 +119,14 @@ DATASETS = [
         "temperature_qc_field": "sea_water_temperature_qc_agg",
     },
     {
+        "name": "San Luis Bay Cal Poly Pier",
+        "type": "Shore Station",
+        "server": "https://erddap.cencoos.org/erddap",
+        "dataset_id": "san-luis-bay-cal-poly-pier-shore",
+        "temperature_field": "sea_water_temperature",
+        "temperature_qc_field": "sea_water_temperature_qc_agg",
+    },
+    {
         "name": "M1 Mooring",
         "type": "Mooring",
         "server": "https://erddap.cencoos.org/erddap",
@@ -768,14 +776,15 @@ def build_archive() -> bytes:
                 temperature_qc_variable=temperature_qc_variable,
             )
             station_frames.append(station_daily)
+            # Compare only with completed prior years; record-tying days are excluded.
             current_year_days_exceeding_historical_max = int(
                 station_daily["current_year_daily_mean"]
-                .ge(station_daily["climatology_max"])
+                .gt(station_daily["historical_climatology_max"])
                 .sum()
             )
             current_year_days_at_or_below_historical_min = int(
                 station_daily["current_year_daily_mean"]
-                .le(station_daily["climatology_min"])
+                .lt(station_daily["historical_climatology_min"])
                 .sum()
             )
             current_year_days_exceeding_historical_p90 = None
